@@ -1,0 +1,30 @@
+﻿@using GitBuddy.Core.Models
+@using GitBuddy.UI.Models
+
+@if (Visible && Suggestions.Count > 0)
+{
+    <div class="autocomplete">
+        @for (int i = 0; i < Suggestions.Count; i++)
+        {
+            var suggestion = Suggestions[i];
+            var index = i;
+            <div class="autocomplete-item @(index == SelectedIndex ? "selected" : "")"
+                 @onclick="() => Select(suggestion)"
+                 @onmouseenter="() => Hover(index)">
+                <span>@suggestion.Text</span>
+                <span class="type">@suggestion.Type</span>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public List<AutocompleteSuggestion> Suggestions { get; set; } = new();
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public int SelectedIndex { get; set; } = -1;
+    [Parameter] public EventCallback<AutocompleteSuggestion> OnSelected { get; set; }
+    [Parameter] public EventCallback<int> OnHover { get; set; }
+
+    private async Task Select(AutocompleteSuggestion s) => await OnSelected.InvokeAsync(s);
+    private async Task Hover(int idx) => await OnHover.InvokeAsync(idx);
+}

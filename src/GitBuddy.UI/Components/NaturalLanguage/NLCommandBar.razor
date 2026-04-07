@@ -1,0 +1,54 @@
+﻿@using GitBuddy.Core.Models
+@using GitBuddy.UI.Models
+
+<div class="nl-bar">
+    <div class="nl-input-wrapper">
+        <span class="nl-search-icon">&#128269;</span>
+        <input class="nl-input"
+               @ref="_inputRef"
+               placeholder="Type a git command in plain English..."
+               @bind="_inputText"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               @onfocus="() => _showHistory = _inputText.Length == 0"
+               @onblur="HandleBlur" />
+
+        <AutocompleteDropdown Suggestions="_suggestions"
+                              Visible="_showAutocomplete"
+                              SelectedIndex="_autocompleteIndex"
+                              OnSelected="SelectSuggestion"
+                              OnHover="idx => { _autocompleteIndex = idx; }" />
+
+        <CommandHistory Visible="_showHistory"
+                        OnSelected="SelectHistory" />
+    </div>
+
+    @if (_isTranslating)
+    {
+        <div style="padding: 6px 0; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--vscode-descriptionForeground);">
+            <LoadingSpinner Visible="true" /> Translating...
+        </div>
+    }
+
+    <CommandPreview Translation="_translation" />
+
+    @if (_translation is not null && !string.IsNullOrEmpty(_translation.Command))
+    {
+        <div style="display: flex; gap: 6px; margin-top: 6px;">
+            @if (_translation.RequiresConfirmation)
+            {
+                <button class="btn @(_translation.Risk == RiskLevel.Dangerous ? "btn-danger" : "btn-primary")"
+                        @onclick="ExecuteCommand">
+                    @(_translation.Risk == RiskLevel.Dangerous ? "Execute (Dangerous)" : "Execute")
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-primary" @onclick="ExecuteCommand">Execute</button>
+            }
+            <button class="btn btn-secondary" @onclick="Clear">Clear</button>
+        </div>
+    }
+
+    <CommandResult Result="_result" />
+</div>

@@ -1,0 +1,79 @@
+﻿@using GitBuddy.UI.Models
+
+<div class="conflict-file">
+    <div class="conflict-file-header" @onclick="() => _expanded = !_expanded">
+        <span class="chevron @(_expanded ? "open" : "")">&#9654;</span>
+        <span class="conflict-file-icon">@StatusIcon</span>
+        <span class="conflict-file-name">@Conflict.FileName</span>
+        <span class="conflict-file-path">@Conflict.FilePath</span>
+        <span class="conflict-progress">@ResolvedCount/@Conflict.Hunks.Count</span>
+    </div>
+
+    @if (_expanded)
+    {
+        @for (int i = 0; i < Conflict.Hunks.Count; i++)
+        {
+            var idx = i;
+            var hunk = Conflict.Hunks[idx];
+
+            <div class="conflict-hunk">
+                <div class="conflict-hunk-header">
+                    <span style="font-size:11px;color:var(--vscode-descriptionForeground);">
+                        Conflict @(idx + 1) — Line @hunk.StartLine
+                    </span>
+                    @if (hunk.Resolution != ConflictResolution.Unresolved)
+                    {
+                        <span class="risk-badge risk-safe" style="margin-left:auto;">&#10003; @hunk.Resolution</span>
+                    }
+                    else
+                    {
+                        <span class="risk-badge risk-dangerous" style="margin-left:auto;">UNRESOLVED</span>
+                    }
+                </div>
+
+                <!-- Current (Ours) -->
+                <div class="conflict-section conflict-current">
+                    <div class="conflict-section-header">
+                        <span>Current Changes (Ours)</span>
+                        <button class="btn btn-secondary" style="font-size:10px;padding:1px 8px;"
+                                @onclick="() => OnResolve.InvokeAsync((Conflict, idx, ConflictResolution.AcceptCurrent))">
+                            Accept Current
+                        </button>
+                    </div>
+                    <pre class="conflict-code">@hunk.CurrentContent</pre>
+                </div>
+
+                <!-- Incoming (Theirs) -->
+                <div class="conflict-section conflict-incoming">
+                    <div class="conflict-section-header">
+                        <span>Incoming Changes (Theirs)</span>
+                        <button class="btn btn-secondary" style="font-size:10px;padding:1px 8px;"
+                                @onclick="() => OnResolve.InvokeAsync((Conflict, idx, ConflictResolution.AcceptIncoming))">
+                            Accept Incoming
+                        </button>
+                    </div>
+                    <pre class="conflict-code">@hunk.IncomingContent</pre>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="conflict-actions">
+                    <button class="btn btn-primary" style="font-size:10px;padding:2px 8px;"
+                            @onclick="() => OnResolve.InvokeAsync((Conflict, idx, ConflictResolution.AcceptBoth))">
+                        Accept Both
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool _expanded = true;
+
+    [Parameter] public MergeConflict Conflict { get; set; } = default!;
+    [Parameter] public EventCallback<(MergeConflict File, int HunkIndex, ConflictResolution Resolution)> OnResolve { get; set; }
+    [Parameter] public EventCallback<MergeConflict> OnOpenDiff { get; set; }
+
+    private int ResolvedCount => Conflict.Hunks.Count(h => h.Resolution != ConflictResolution.Unresolved);
+    private string StatusIcon => ResolvedCount == Conflict.Hunks.Count ? "&#10003;" : "&#9888;";
+}

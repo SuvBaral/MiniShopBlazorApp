@@ -1,7 +1,35 @@
+# Source files — compiled output in out/ is what ships
 src/**
-node_modules/**
-.vscode/**
-tsconfig.json
 **/*.ts
 !out/**/*.js
-!blazor-app/**
+tsconfig.json
+
+# Node / build tooling
+node_modules/**
+.npmrc
+
+# IDE and OS
+.vscode/**
+.DS_Store
+Thumbs.db
+
+# Tests
+**/*.test.js
+**/*.spec.js
+
+# Docs and repo files (not needed inside the extension)
+../../README.md
+../../CHANGELOG.md
+../../CONTRIBUTING.md
+../../LICENSE
+../../.gitignore
+../../build.ps1
+../../build/**
+../../tests/**
+../../src/GitSimple.Core/**
+../../src/GitSimple.UI/**
+../../global.json
+../../GitSimple.sln
+
+# Blazor source — only the compiled output (blazor-app/) ships
+# blazor-app/ is kept (NOT ignored here) because it is the compiled UI

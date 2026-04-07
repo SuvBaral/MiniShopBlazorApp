@@ -1,19 +1,23 @@
 {
-  "name": "git-simple",
-  "displayName": "Git Simple — Team Explorer for VS Code + AI Git Commands",
-  "description": "Visual Studio Team Explorer-style Git panel with natural language commands. Type 'switch to main' instead of remembering git commands. Built with Blazor WASM.",
+  "name": "git-buddy",
+  "displayName": "Git Buddy",
+  "description": "Your friendly Git companion for VS Code. Team Explorer-style panel with natural language commands — type 'switch to main' or 'merge develop' instead of memorizing git syntax. Full staging, history, conflict resolution, and AI commit messages built in.",
   "version": "1.0.0",
-  "publisher": "shubham",
+  "publisher": "YOUR-PUBLISHER-ID",
+  "license": "MIT",
+  "author": {
+    "name": "Shubham"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YourUsername/GitSimple"
+    "url": "https://github.com/YOUR-USERNAME/GitBuddy"
   },
-  "homepage": "https://github.com/YourUsername/GitSimple",
+  "homepage": "https://github.com/YOUR-USERNAME/GitBuddy#readme",
   "bugs": {
-    "url": "https://github.com/YourUsername/GitSimple/issues"
+    "url": "https://github.com/YOUR-USERNAME/GitBuddy/issues"
   },
   "engines": {
-    "vscode": "^1.110.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
     "SCM Providers",
@@ -21,56 +25,63 @@
   ],
   "keywords": [
     "git",
-    "branches",
-    "team explorer",
     "source control",
+    "team explorer",
+    "branches",
     "natural language",
     "ai",
-    "simple git",
+    "staging",
+    "commit",
+    "diff",
+    "git buddy",
     "blazor"
   ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onStartupFinished",
     "workspaceContains:.git"
   ],
   "main": "./out/extension.js",
-  "icon": "images/icon.png",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "gitSimple",
-          "title": "Git Simple",
-          "icon": "$(git-branch)"
+          "id": "gitBuddy",
+          "title": "Git Buddy",
+          "icon": "images/git-simple.svg"
         }
       ]
     },
     "views": {
-      "gitSimple": [
+      "gitBuddy": [
         {
           "type": "webview",
-          "id": "gitSimple.mainView",
-          "name": "Git Simple"
+          "id": "gitBuddy.mainView",
+          "name": "Git Buddy"
         }
       ]
     },
     "commands": [
       {
-        "command": "gitSimple.refresh",
+        "command": "gitBuddy.refresh",
         "title": "Refresh",
         "icon": "$(refresh)",
-        "category": "Git Simple"
+        "category": "Git Buddy"
       },
       {
-        "command": "gitSimple.nlCommand",
+        "command": "gitBuddy.nlCommand",
         "title": "Git Command (Natural Language)",
         "icon": "$(comment)",
-        "category": "Git Simple"
+        "category": "Git Buddy"
       }
     ],
     "keybindings": [
       {
-        "command": "gitSimple.nlCommand",
+        "command": "gitBuddy.nlCommand",
         "key": "ctrl+shift+g ctrl+shift+n",
         "when": "workspaceFolderCount > 0"
       }
@@ -78,40 +89,40 @@
     "menus": {
       "view/title": [
         {
-          "command": "gitSimple.refresh",
-          "when": "view == gitSimple.mainView",
+          "command": "gitBuddy.refresh",
+          "when": "view == gitBuddy.mainView",
           "group": "navigation"
         },
         {
-          "command": "gitSimple.nlCommand",
-          "when": "view == gitSimple.mainView",
+          "command": "gitBuddy.nlCommand",
+          "when": "view == gitBuddy.mainView",
           "group": "navigation"
         }
       ]
     },
     "configuration": {
-      "title": "Git Simple",
+      "title": "Git Buddy",
       "properties": {
-        "gitSimple.nlProvider": {
+        "gitBuddy.nlProvider": {
           "type": "string",
           "default": "auto",
-          "enum": [
-            "auto",
-            "copilot",
-            "anthropic",
-            "offline"
+          "enum": ["auto", "copilot", "offline"],
+          "enumDescriptions": [
+            "Use Copilot if available, fall back to offline pattern matching",
+            "Always use GitHub Copilot (requires Copilot extension)",
+            "Offline pattern matching only — no AI calls"
           ],
-          "description": "AI provider for natural language commands. 'auto' uses Copilot if available, falls back to offline."
+          "description": "AI provider for natural language command translation."
         },
-        "gitSimple.confirmModerate": {
+        "gitBuddy.confirmModerate": {
           "type": "boolean",
           "default": true,
-          "description": "Show confirmation for moderate-risk operations (merge, rebase, checkout)"
+          "description": "Ask for confirmation before moderate-risk operations (merge, rebase, checkout)."
         },
-        "gitSimple.autoBackupOnDangerous": {
+        "gitBuddy.autoBackupOnDangerous": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically stash changes before dangerous operations"
+          "description": "Automatically stash uncommitted changes before dangerous operations (hard reset, force push, etc.)."
         }
       }
     }
@@ -123,7 +134,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.37",
-    "@types/vscode": "^1.110.0",
+    "@types/vscode": "^1.107.0",
+    "@vscode/vsce": "^3.7.1",
+    "ovsx": "^0.10.10",
     "typescript": "^5.9.3"
   }
 }

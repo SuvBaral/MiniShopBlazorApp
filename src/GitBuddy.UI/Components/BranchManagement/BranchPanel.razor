@@ -1,0 +1,76 @@
+﻿@using GitBuddy.UI.Models
+
+<div class="branch-panel">
+    @if (!string.IsNullOrEmpty(_state.RepoName))
+    {
+        <div class="section-header" style="font-size: 12px; font-weight: 700; text-transform: none; letter-spacing: normal;">
+            &#128230; @RepoDisplayName (@_state.CurrentBranch)
+        </div>
+    }
+
+    <BranchGroup Title="Local Branches" Count="@_state.LocalBranches.Count" InitiallyExpanded="true">
+        @foreach (var branch in _state.LocalBranches)
+        {
+            <BranchItem Branch="branch"
+                        SyncInfo="@(branch.IsCurrent ? _state.Sync : null)"
+                        OnSelected="HandleBranchSelected"
+                        OnContextMenu="HandleContextMenu" />
+        }
+    </BranchGroup>
+
+    <BranchGroup Title="Remotes" Count="@_state.RemoteBranches.Count" InitiallyExpanded="true">
+        @foreach (var remote in _state.RemoteBranches)
+        {
+            <RemoteGroup RemoteName="@remote.Key"
+                         Branches="@remote.Value"
+                         OnBranchSelected="HandleBranchSelected"
+                         OnBranchContextMenu="HandleContextMenu" />
+        }
+    </BranchGroup>
+
+    <BranchGroup Title="Stashes" Count="@_state.Stashes.Count" InitiallyExpanded="false">
+        @foreach (var stash in _state.Stashes)
+        {
+            <div class="branch-item" @oncontextmenu="e => HandleStashContextMenu(stash, e)" @oncontextmenu:preventDefault="true">
+                <span class="icon">&#128230;</span>
+                <span>stash@{@stash.Index}: @stash.Message</span>
+            </div>
+        }
+    </BranchGroup>
+</div>
+
+@if (_showContextMenu)
+{
+    <ContextMenu X="_menuX" Y="_menuY" OnClose="CloseContextMenu">
+        @if (_contextBranch is not null)
+        {
+            @if (_contextBranch.IsLocal)
+            {
+                <ContextMenuItem Label="Checkout" OnClick="() => ContextCheckout()" />
+                <ContextMenuItem Label="Pull" OnClick="() => ContextPull()" />
+                <ContextMenuItem Label="Push" OnClick="() => ContextPush()" />
+                <Separator />
+                <ContextMenuItem Label="Merge into current..." OnClick="() => ContextMerge()" />
+                <ContextMenuItem Label="Rebase onto current..." OnClick="() => ContextRebase()" />
+                <Separator />
+                <ContextMenuItem Label="New branch from here..." OnClick="() => ShowNewBranchDialog()" />
+                <ContextMenuItem Label="Rename..." OnClick="() => ShowRenameDialog()" />
+                <ContextMenuItem Label="Delete" IsDangerous="true" OnClick="() => ContextDelete()" />
+            }
+            else
+            {
+                <ContextMenuItem Label="Checkout (track)" OnClick="() => ContextCheckout()" />
+                <ContextMenuItem Label="Merge into current..." OnClick="() => ContextMerge()" />
+                <ContextMenuItem Label="Rebase onto current..." OnClick="() => ContextRebase()" />
+                <ContextMenuItem Label="New branch from here..." OnClick="() => ShowNewBranchDialog()" />
+            }
+        }
+        else if (_contextStash is not null)
+        {
+            <ContextMenuItem Label="Apply" OnClick="() => ContextStashApply()" />
+            <ContextMenuItem Label="Pop" OnClick="() => ContextStashPop()" />
+            <Separator />
+            <ContextMenuItem Label="Drop" IsDangerous="true" OnClick="() => ContextStashDrop()" />
+        }
+    </ContextMenu>
+}

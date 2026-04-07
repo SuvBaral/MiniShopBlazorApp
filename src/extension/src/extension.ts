@@ -5,12 +5,12 @@ import { translateNL, getAutocompleteSuggestions } from './nlTranslator';
 import { classifyRisk } from './riskClassifier';
 
 export function activate(context: vscode.ExtensionContext) {
-    const provider = new GitSimpleProvider(context);
+    const provider = new GitBuddyProvider(context);
 
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider('gitSimple.mainView', provider),
-        vscode.commands.registerCommand('gitSimple.refresh', () => provider.notifyRepoChanged()),
-        vscode.commands.registerCommand('gitSimple.nlCommand', () => provider.focusNLBar())
+        vscode.window.registerWebviewViewProvider('gitBuddy.mainView', provider),
+        vscode.commands.registerCommand('gitBuddy.refresh', () => provider.notifyRepoChanged()),
+        vscode.commands.registerCommand('gitBuddy.nlCommand', () => provider.focusNLBar())
     );
 
     // Watch git state changes
@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(watcher);
 }
 
-class GitSimpleProvider implements vscode.WebviewViewProvider {
+class GitBuddyProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
 
     constructor(private ctx: vscode.ExtensionContext) {}
@@ -37,6 +37,13 @@ class GitSimpleProvider implements vscode.WebviewViewProvider {
             let result: any;
             try {
                 switch (msg.command) {
+                    // === Workspace diagnostics ===
+                    case 'get-workspace': {
+                        const cwd = this.getCwd();
+                        const folders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [];
+                        result = { success: !!cwd, output: cwd ?? '', error: cwd ? null : 'No workspace folder open', folders };
+                        break;
+                    }
                     // === Git operations ===
                     case 'get-branches':
                     case 'get-status':
@@ -155,22 +162,18 @@ class GitSimpleProvider implements vscode.WebviewViewProvider {
     // --- Core git runner: no shell, args passed directly to git process ---
     private spawnGit(args: string[], cwd?: string, timeout: number = 30000): Promise<any> {
         cwd = cwd || this.getCwd();
-        console.log(`[GitSimple-Trace] >> Executing: git ${args.join(' ')} (Timeout: ${timeout}ms)`);
-        const startTime = Date.now();
 
         return new Promise(resolve => {
             cp.execFile('git', args, { cwd, timeout }, (err, stdout, stderr) => {
-                const duration = Date.now() - startTime;
-                if (err) {
-                    console.error(`[GitSimple-Error] << Failed in ${duration}ms! git ${args[0]} \nError: ${err.message}\nStderr: ${stderr.trim()}`);
-                } else {
-                    console.log(`[GitSimple-Trace] << Success in ${duration}ms! Output length: ${stdout.length} bytes`);
+                let errorMsg = err ? (stderr.trim() || err.message) : null;
+                // Detect auth failures and guide the user
+                if (errorMsg && /authentication failed|could not read username|permission denied|403|401|invalid credentials|remote: repository not found/i.test(errorMsg)) {
+                    errorMsg = `Authentication failed. Make sure git credentials are configured:\n• Run: git config --global credential.helper manager\n• Or use SSH: git remote set-url origin git@github.com:user/repo.git\n\nOriginal error: ${errorMsg}`;
                 }
-
                 resolve({
                     success: !err,
                     output: stdout.trim(),
-                    error: err ? (stderr.trim() || err.message) : null
+                    error: errorMsg
                 });
             });
         });
@@ -232,7 +235,7 @@ class GitSimpleProvider implements vscode.WebviewViewProvider {
             translation.warning = risk.warning ?? undefined;
 
             // Auto-backup for dangerous commands
-            const config = vscode.workspace.getConfiguration('gitSimple');
+            const config = vscode.workspace.getConfiguration('gitBuddy');
             if (risk.level === 'dangerous' && config.get<boolean>('autoBackupOnDangerous', true)) {
                 await this.spawnGit(['stash', 'push', '-m', `auto-backup-${Date.now()}`], cwd);
             }
@@ -249,6 +252,7 @@ class GitSimpleProvider implements vscode.WebviewViewProvider {
     // --- NL Execute: safely parse and run the translated git command ---
     private async handleNLExecute(rawCmd: string): Promise<any> {
         const cwd = this.getCwd();
+        if (!cwd) { return { success: false, error: 'No workspace open. Open a folder with a git repository first.' }; }
 
         // Support compound commands chained with &&
         if (rawCmd.includes('&&')) {
@@ -344,7 +348,7 @@ class GitSimpleProvider implements vscode.WebviewViewProvider {
             'continue-merge': ['commit', '--no-edit'],
             // === Commit Composer ===
             'get-staged-changes': ['diff', '--cached', '--name-status'],
-            'get-unstaged-changes': ['status', '--porcelain'],
+            'get-unstaged-changes': ['status', '--porcelain', '--untracked-files=all'],
             'commit': (p) => ['commit', '-m', p?.message || ''],
             'commit-amend': (p) => ['commit', '--amend', '-m', p?.message || ''],
             // === Interactive Staging ===
@@ -502,21 +506,47 @@ class GitSimpleProvider implements vscode.WebviewViewProvider {
     private getHtml(wv: vscode.Webview): string {
         const base = wv.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'blazor-app'));
         return `<!DOCTYPE html><html><head>
-<meta charset="utf-8"/><base href="${base}/"/>
+<meta charset="utf-8"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' ${wv.cspSource}; style-src 'unsafe-inline' ${wv.cspSource}; font-src ${wv.cspSource}; connect-src ${wv.cspSource} blob:; img-src ${wv.cspSource} blob: data:; worker-src blob: ${wv.cspSource};"/>
 <link href="${base}/css/app.css" rel="stylesheet"/>
 </head><body>
-<div id="app"><div style="padding:16px;color:var(--vscode-foreground)">Loading Git Simple...</div></div>
+<div id="app"><div id="loading-msg" style="padding:16px;color:var(--vscode-foreground)">Loading Git Buddy...</div></div>
 <script>
-const vscode=acquireVsCodeApi();let dn=null;
-window.bridge={init:h=>{dn=h},send:m=>{vscode.postMessage(m)}};
-window.addEventListener('message',e=>{const m=e.data;
-if(m.type==='response'&&dn)dn.invokeMethodAsync('OnResponse',m.requestId,JSON.stringify(m.data));
-if(m.type==='repoChanged'&&dn)dn.invokeMethodAsync('OnRepoChange');
-if(m.type==='focusNLBar'&&dn)dn.invokeMethodAsync('OnFocusNLBarRequest');
+// VS Code bridge
+const vscode = acquireVsCodeApi();
+let dn = null;
+window.bridge = {
+    init: h => { dn = h; },
+    send: m => { vscode.postMessage(m); }
+};
+window.addEventListener('message', e => {
+    const m = e.data;
+    if (m.type === 'response' && dn) dn.invokeMethodAsync('OnResponse', m.requestId, JSON.stringify(m.data));
+    if (m.type === 'repoChanged' && dn) dn.invokeMethodAsync('OnRepoChange');
+    if (m.type === 'focusNLBar' && dn) dn.invokeMethodAsync('OnFocusNLBarRequest');
 });
+// Show errors inside the panel for easier debugging
+window.onerror = function(msg, src, line, col, err) {
+    const el = document.getElementById('app');
+    if (el) el.innerHTML = '<pre style="color:#f44;padding:16px;white-space:pre-wrap;font-size:12px">Git Buddy error:\\n' + msg + (err ? '\\n' + err.stack : '') + '</pre>';
+};
 </script>
-<script src="${base}/_framework/blazor.webassembly.js" autostart="false" onload="Blazor.start();"></script>
+<script src="${base}/_framework/blazor.webassembly.js" autostart="false"></script>
+<script>
+// Use loadBootResource so Blazor fetches files via explicit webview URIs
+// instead of resolving against document.baseURI (which breaks in webview context)
+(function startBlazor() {
+    if (typeof Blazor === 'undefined') {
+        setTimeout(startBlazor, 50);
+        return;
+    }
+    Blazor.start({
+        loadBootResource: function(type, name, defaultUri, integrity) {
+            return '${base}/_framework/' + name;
+        }
+    });
+})();
+</script>
 </body></html>`;
     }
 }

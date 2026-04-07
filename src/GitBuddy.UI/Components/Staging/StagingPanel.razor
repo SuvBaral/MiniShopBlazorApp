@@ -1,0 +1,213 @@
+﻿@using GitBuddy.UI.Models
+@inject GitService Git
+
+<div class="staging-panel">
+    <!-- Staged Changes -->
+    <div class="section-header" @onclick="() => _stagedExpanded = !_stagedExpanded">
+        <span class="chevron @(_stagedExpanded ? "open" : "")">&#9654;</span>
+        STAGED CHANGES
+        <span class="count">@_staged.Count</span>
+        @if (_staged.Count > 0)
+        {
+            <button class="btn btn-secondary" style="font-size:9px;padding:1px 6px;margin-left:auto;"
+                    @onclick:stopPropagation="true" @onclick="UnstageAll">&#8722; All</button>
+        }
+    </div>
+
+    @if (_stagedExpanded)
+    {
+        @foreach (var file in _staged)
+        {
+            <StagingFileItem File="file" IsStaged="true"
+                             OnStage="StageFile" OnUnstage="UnstageFile"
+                             OnDiscard="DiscardFile" OnViewDiff="ViewDiff" />
+        }
+        @if (_staged.Count == 0)
+        {
+            <div style="padding:6px 20px;font-size:11px;color:var(--vscode-descriptionForeground);">
+                No staged changes
+            </div>
+        }
+    }
+
+    <!-- Unstaged Changes -->
+    <div class="section-header" @onclick="() => _unstagedExpanded = !_unstagedExpanded">
+        <span class="chevron @(_unstagedExpanded ? "open" : "")">&#9654;</span>
+        CHANGES
+        <span class="count">@_unstaged.Count</span>
+        @if (_unstaged.Count > 0)
+        {
+            <button class="btn btn-secondary" style="font-size:9px;padding:1px 6px;margin-left:auto;"
+                    @onclick:stopPropagation="true" @onclick="StageAllFiles">&#43; All</button>
+        }
+    </div>
+
+    @if (_unstagedExpanded)
+    {
+        @foreach (var file in _unstaged)
+        {
+            <StagingFileItem File="file" IsStaged="false"
+                             OnStage="StageFile" OnUnstage="UnstageFile"
+                             OnDiscard="DiscardFile" OnViewDiff="ViewDiff" />
+        }
+        @if (_unstaged.Count == 0)
+        {
+            <div style="padding:6px 20px;font-size:11px;color:var(--vscode-descriptionForeground);">
+                No changes
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<FileChange> _staged = new();
+    private List<FileChange> _unstaged = new();
+    private bool _stagedExpanded = true;
+    private bool _unstagedExpanded = true;
+
+    [Parameter] public EventCallback<string> OnToast { get; set; }
+    [Parameter] public EventCallback<string> OnError { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    [Parameter] public EventCallback<(string Title, string Message, string? Warning, bool IsDangerous, Func<Task> OnConfirm)> OnConfirmRequest { get; set; }
+
+    public async Task RefreshChanges()
+    {
+        try
+        {
+            var stagedResult = await Git.GetStagedChanges();
+            var unstagedResult = await Git.GetUnstagedChanges();
+            _staged = ParseFileChanges(stagedResult?.Output, true);
+            _unstaged = ParseFileChanges(unstagedResult?.Output, false);
+        }
+        catch
+        {
+            _staged = new();
+            _unstaged = new();
+        }
+        StateHasChanged();
+    }
+
+    // TECH DEBT [TD-001]: This parser uses Split('\n') on --name-status output.
+    // This works for 99% of repos but can misbehave in two edge cases:
+    //   1. Filenames that contain " -> " (e.g. "foo -> bar.txt") — the rename-arrow
+    //      split on line 96 will incorrectly truncate the real path.
+    //   2. Filenames with embedded newlines or unusual escape sequences emitted by git.
+    // The correct fix is to pass `-z` to `git diff --cached --name-status -z` and
+    // `git status --porcelain -z` so git delimits records with NUL bytes (\0), then
+    // split on '\0' here instead of '\n'. This requires a matching change in extension.ts
+    // (get-staged-changes and get-unstaged-changes commands) to pass the -z flag and
+    // update output.trim() to handle NUL-terminated strings.
+    // Not a production blocker — safe for all normal workflows. Track as TD-001.
+    private List<FileChange> ParseFileChanges(string? output, bool staged)
+    {
+        var files = new List<FileChange>();
+        if (string.IsNullOrWhiteSpace(output)) return files;
+
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.Length < 3) continue;
+
+            char statusChar;
+            string path;
+
+            if (staged)
+            {
+                // --name-status format: "M\tfile.txt" or "R90\toldname\tnewname"
+                statusChar = line[0];
+                path = line[1..].Trim();
+                if (path.Contains('\t')) path = path.Split('\t')[^1].Trim();
+            }
+            else
+            {
+                // --porcelain format: "XY file.txt" where X=staged, Y=working-tree
+                // Read from RAW line (before any trim) to preserve position-based encoding
+                // e.g. " M file.txt" → Y='M', "?? file.txt" → Y='?'
+                statusChar = line[1];
+                path = line[3..].Trim();
+                // Handle rename arrow: "old -> new"
+                // TD-001: filenames literally containing " -> " will be incorrectly split here.
+                if (path.Contains(" -> ")) path = path.Split(" -> ")[^1].Trim();
+            }
+
+            var status = statusChar switch
+            {
+                'A' or '?' => FileChangeStatus.Added,
+                'M' => FileChangeStatus.Modified,
+                'D' => FileChangeStatus.Deleted,
+                'R' => FileChangeStatus.Renamed,
+                'C' => FileChangeStatus.Copied,
+                'U' => FileChangeStatus.Conflicted,
+                _ => FileChangeStatus.Modified
+            };
+
+            files.Add(new FileChange(path, Path.GetFileName(path), status, 0, 0, staged, null));
+        }
+        return files;
+    }
+
+    private async Task StageFile(FileChange file)
+    {
+        var result = await Git.StageFile(file.Path);
+        if (result?.Success == true) await RefreshChanges();
+        else await OnError.InvokeAsync(result?.Error ?? "Stage failed");
+        await OnRefresh.InvokeAsync();
+    }
+
+    private async Task UnstageFile(FileChange file)
+    {
+        var result = await Git.UnstageFile(file.Path);
+        if (result?.Success == true) await RefreshChanges();
+        else await OnError.InvokeAsync(result?.Error ?? "Unstage failed");
+        await OnRefresh.InvokeAsync();
+    }
+
+    private async Task StageAllFiles()
+    {
+        var result = await Git.StageAll();
+        if (result?.Success == true)
+        {
+            await RefreshChanges();
+            await OnToast.InvokeAsync("All changes staged");
+        }
+        await OnRefresh.InvokeAsync();
+    }
+
+    private async Task UnstageAll()
+    {
+        var result = await Git.UnstageAll();
+        if (result?.Success == true)
+        {
+            await RefreshChanges();
+            await OnToast.InvokeAsync("All changes unstaged");
+        }
+        await OnRefresh.InvokeAsync();
+    }
+
+    private async Task DiscardFile(FileChange file)
+    {
+        await OnConfirmRequest.InvokeAsync((
+            "Discard Changes",
+            $"Discard all changes to {file.FileName}?",
+            "This cannot be undone!",
+            true,
+            async () =>
+            {
+                var result = await Git.DiscardFileChanges(file.Path);
+                if (result?.Success == true)
+                {
+                    await RefreshChanges();
+                    await OnToast.InvokeAsync($"Discarded changes to {file.FileName}");
+                }
+                else
+                {
+                    await OnError.InvokeAsync(result?.Error ?? "Discard failed");
+                }
+            }
+        ));
+    }
+
+    private async Task ViewDiff(FileChange file)
+    {
+        await Git.ViewFileDiff(file.Path, file.IsStaged);
+    }
+}

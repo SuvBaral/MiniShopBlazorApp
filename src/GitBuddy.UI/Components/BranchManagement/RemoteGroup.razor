@@ -1,0 +1,31 @@
+﻿@using GitBuddy.Core.Models
+@using GitBuddy.UI.Models
+
+<div class="remote-group">
+    <div class="section-header" @onclick="Toggle" style="padding-left: 24px;">
+        <span class="chevron @(IsExpanded ? "open" : "")">&#9654;</span>
+        <span>@RemoteName</span>
+    </div>
+
+    @if (IsExpanded)
+    {
+        @foreach (var branch in Branches)
+        {
+            <BranchItem Branch="branch"
+                        IsRemote="true"
+                        OnSelected="OnBranchSelected"
+                        OnContextMenu="OnBranchContextMenu" />
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string RemoteName { get; set; } = string.Empty;
+    [Parameter] public List<Branch> Branches { get; set; } = new();
+    [Parameter] public EventCallback<Branch> OnBranchSelected { get; set; }
+    [Parameter] public EventCallback<(Branch Branch, double X, double Y)> OnBranchContextMenu { get; set; }
+
+    private bool IsExpanded;
+
+    private void Toggle() => IsExpanded = !IsExpanded;
+}

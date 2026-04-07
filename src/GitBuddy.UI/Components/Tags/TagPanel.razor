@@ -1,0 +1,159 @@
+﻿@using GitBuddy.UI.Models
+@inject GitService Git
+
+<div class="tag-panel">
+    <div class="section-header" @onclick="() => _expanded = !_expanded">
+        <span class="chevron @(_expanded ? "open" : "")">&#9654;</span>
+        TAGS
+        <span class="count">@_tags.Count</span>
+    </div>
+
+    @if (_expanded)
+    {
+        <div style="padding:4px 8px;">
+            <button class="btn btn-secondary" style="width:100%;font-size:11px;" @onclick="CreateNewTag">
+                &#43; New Tag
+            </button>
+        </div>
+
+        @foreach (var tag in _tags)
+        {
+            <div class="branch-item"
+                 @oncontextmenu="e => ShowTagMenu(e, tag)"
+                 @oncontextmenu:preventDefault="true">
+                <span class="icon" style="color:var(--vscode-editorWarning-foreground);">&#127991;</span>
+                <span class="name">@tag.Name</span>
+                @if (tag.IsAnnotated)
+                {
+                    <span style="font-size:10px;color:var(--vscode-descriptionForeground);">annotated</span>
+                }
+            </div>
+        }
+
+        @if (_tags.Count == 0)
+        {
+            <div style="padding:6px 20px;font-size:11px;color:var(--vscode-descriptionForeground);">
+                No tags
+            </div>
+        }
+    }
+</div>
+
+@if (_showMenu)
+{
+    <ContextMenu X="_menuX" Y="_menuY" OnClose="() => _showMenu = false">
+        <ContextMenuItem Label="Checkout tag" OnClick="CheckoutTag" />
+        <ContextMenuItem Label="Push tag" OnClick="PushTag" />
+        <Separator />
+        <ContextMenuItem Label="Delete" IsDangerous="true" OnClick="DeleteTag" />
+    </ContextMenu>
+}
+
+@code {
+    private List<TagInfo> _tags = new();
+    private bool _expanded = false;
+    private bool _showMenu;
+    private double _menuX, _menuY;
+    private TagInfo? _menuTag;
+
+    [Parameter] public EventCallback<string> OnToast { get; set; }
+    [Parameter] public EventCallback<string> OnError { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    [Parameter] public EventCallback<(string Title, string Placeholder, Func<string, Task> OnSubmit)> OnInputRequest { get; set; }
+    [Parameter] public EventCallback<(string Title, string Message, string? Warning, bool IsDangerous, Func<Task> OnConfirm)> OnConfirmRequest { get; set; }
+
+    public async Task LoadTags()
+    {
+        var result = await Git.GetTags();
+        _tags.Clear();
+        if (result?.Success == true && !string.IsNullOrWhiteSpace(result.Output))
+        {
+            foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.Split('|');
+                _tags.Add(new TagInfo(
+                    Name: parts[0].Trim(),
+                    Hash: parts.Length > 1 ? parts[1].Trim() : "",
+                    Message: parts.Length > 2 ? parts[2].Trim() : null,
+                    Tagger: parts.Length > 3 ? parts[3].Trim() : null,
+                    Date: parts.Length > 4 ? parts[4].Trim() : null,
+                    IsAnnotated: parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2])
+                ));
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void ShowTagMenu(Microsoft.AspNetCore.Components.Web.MouseEventArgs e, TagInfo tag)
+    {
+        _menuTag = tag;
+        _menuX = e.ClientX;
+        _menuY = e.ClientY;
+        _showMenu = true;
+    }
+
+    private async Task CreateNewTag()
+    {
+        await OnInputRequest.InvokeAsync((
+            "Create Tag",
+            "Tag name (e.g. v1.0.0)",
+            async (string name) =>
+            {
+                var result = await Git.CreateTag(name);
+                if (result?.Success == true)
+                {
+                    await OnToast.InvokeAsync($"Created tag {name}");
+                    await LoadTags();
+                }
+                else
+                {
+                    await OnError.InvokeAsync(result?.Error ?? "Failed to create tag");
+                }
+            }
+        ));
+    }
+
+    private async Task CheckoutTag()
+    {
+        _showMenu = false;
+        if (_menuTag is null) return;
+        var result = await Git.Checkout(_menuTag.Name);
+        if (result?.Success == true) await OnToast.InvokeAsync($"Checked out tag {_menuTag.Name}");
+        else await OnError.InvokeAsync(result?.Error ?? "Checkout failed");
+        await OnRefresh.InvokeAsync();
+    }
+
+    private async Task PushTag()
+    {
+        _showMenu = false;
+        if (_menuTag is null) return;
+        var result = await Git.PushTag(_menuTag.Name);
+        if (result?.Success == true) await OnToast.InvokeAsync($"Pushed tag {_menuTag.Name}");
+        else await OnError.InvokeAsync(result?.Error ?? "Push failed");
+    }
+
+    private async Task DeleteTag()
+    {
+        _showMenu = false;
+        if (_menuTag is null) return;
+        await OnConfirmRequest.InvokeAsync((
+            "Delete Tag",
+            $"Delete tag '{_menuTag.Name}'?",
+            "This cannot be undone.",
+            true,
+            async () =>
+            {
+                var result = await Git.DeleteTag(_menuTag.Name);
+                if (result?.Success == true)
+                {
+                    await OnToast.InvokeAsync($"Deleted tag {_menuTag.Name}");
+                    await LoadTags();
+                }
+                else
+                {
+                    await OnError.InvokeAsync(result?.Error ?? "Delete failed");
+                }
+            }
+        ));
+    }
+}

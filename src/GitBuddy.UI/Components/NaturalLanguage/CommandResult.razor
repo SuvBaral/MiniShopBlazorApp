@@ -1,0 +1,28 @@
+﻿@using GitBuddy.Core.Models
+@using GitBuddy.UI.Models
+
+@if (Result is not null)
+{
+    <div class="command-preview" style="border-left-color: @(Result.Success ? "var(--vscode-testing-iconPassed)" : "var(--vscode-editorError-foreground)");">
+        @if (Result.Success)
+        {
+            <div style="color: var(--vscode-testing-iconPassed); font-size: 11px;">&#10003; Command executed successfully</div>
+            @if (!string.IsNullOrWhiteSpace(Result.Output))
+            {
+                <pre style="margin-top: 4px; font-size: 11px; white-space: pre-wrap; font-family: var(--vscode-editor-font-family); color: var(--vscode-foreground);">@Result.Output</pre>
+            }
+        }
+        else
+        {
+            <div style="color: var(--vscode-editorError-foreground); font-size: 11px;">&#10007; Command failed</div>
+            @if (!string.IsNullOrWhiteSpace(Result.Error))
+            {
+                <pre style="margin-top: 4px; font-size: 11px; white-space: pre-wrap; font-family: var(--vscode-editor-font-family); color: var(--vscode-editorError-foreground);">@Result.Error</pre>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public GitCommandResult? Result { get; set; }
+}

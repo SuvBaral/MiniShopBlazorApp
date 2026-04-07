@@ -1,0 +1,259 @@
+﻿@using GitBuddy.UI.Models
+@inject GitService Git
+
+<div class="conflict-panel">
+    @if (_loading)
+    {
+        <div style="padding:16px;display:flex;align-items:center;gap:8px;color:var(--vscode-descriptionForeground);">
+            <LoadingSpinner Visible="true" /> Checking for conflicts...
+        </div>
+    }
+    else if (_conflicts.Count == 0 && !_isMerging)
+    {
+        <!-- Don't render anything when no conflicts -->
+    }
+    else
+    {
+        <div class="section-header" onclick="@(() => _expanded = !_expanded)" style="background:var(--vscode-editorWarning-foreground);color:#1e1e1e;">
+            <span class="chevron @(_expanded ? "open" : "")">&#9654;</span>
+            &#9888; MERGE CONFLICTS
+            <span class="count">@_conflicts.Count files</span>
+        </div>
+
+        @if (_expanded)
+        {
+            <div style="padding:6px 8px;display:flex;gap:4px;">
+                <button class="btn btn-primary" style="flex:1;font-size:11px;" @onclick="ContinueMerge"
+                        disabled="@(_conflicts.Any(c => c.Hunks.Any(h => h.Resolution == ConflictResolution.Unresolved)))">
+                    &#10003; Complete Merge
+                </button>
+                <button class="btn btn-danger" style="font-size:11px;" @onclick="AbortMerge">
+                    &#10007; Abort
+                </button>
+            </div>
+
+            <div style="padding:0 8px 4px;">
+                <div style="display:flex;gap:4px;">
+                    <button class="btn btn-secondary" style="flex:1;font-size:10px;padding:2px 6px;"
+                            @onclick="AcceptAllCurrent">Accept All Current</button>
+                    <button class="btn btn-secondary" style="flex:1;font-size:10px;padding:2px 6px;"
+                            @onclick="AcceptAllIncoming">Accept All Incoming</button>
+                </div>
+            </div>
+
+            @foreach (var conflict in _conflicts)
+            {
+                <ConflictFileItem Conflict="conflict"
+                                  OnResolve="HandleResolve"
+                                  OnOpenDiff="OpenConflictDiff" />
+            }
+        }
+    }
+</div>
+
+@code {
+    private List<MergeConflict> _conflicts = new();
+    private bool _loading;
+    private bool _expanded = true;
+    private bool _isMerging;
+
+    [Parameter] public EventCallback<string> OnToast { get; set; }
+    [Parameter] public EventCallback<string> OnError { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    [Parameter] public EventCallback<(string Title, string Message, string? Warning, bool IsDangerous, Func<Task> OnConfirm)> OnConfirmRequest { get; set; }
+
+    public async Task CheckConflicts()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await Git.GetConflicts();
+            _conflicts.Clear();
+            _isMerging = false;
+
+            if (result?.Success == true && !string.IsNullOrWhiteSpace(result.Output))
+            {
+                _isMerging = true;
+                var files = result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var file in files)
+                {
+                    var trimmed = file.Trim();
+                    if (string.IsNullOrEmpty(trimmed)) continue;
+
+                    var diffResult = await Git.GetConflictDiff(trimmed);
+                    var hunks = ParseConflictHunks(diffResult?.Output ?? "");
+                    _conflicts.Add(new MergeConflict(trimmed, Path.GetFileName(trimmed), hunks));
+                }
+            }
+        }
+        catch
+        {
+            _conflicts.Clear();
+            _isMerging = false;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private List<ConflictHunk> ParseConflictHunks(string content)
+    {
+        var hunks = new List<ConflictHunk>();
+        var lines = content.Split('\n');
+        int i = 0;
+        int lineNum = 1;
+
+        while (i < lines.Length)
+        {
+            if (lines[i].StartsWith("<<<<<<<"))
+            {
+                var current = new List<string>();
+                var incoming = new List<string>();
+                int startLine = lineNum;
+                i++;
+
+                while (i < lines.Length && !lines[i].StartsWith("======="))
+                {
+                    current.Add(lines[i]);
+                    i++;
+                }
+                i++; // skip =======
+
+                while (i < lines.Length && !lines[i].StartsWith(">>>>>>>"))
+                {
+                    incoming.Add(lines[i]);
+                    i++;
+                }
+                i++; // skip >>>>>>>
+
+                hunks.Add(new ConflictHunk(
+                    startLine,
+                    string.Join("\n", current),
+                    string.Join("\n", incoming),
+                    null,
+                    ConflictResolution.Unresolved
+                ));
+            }
+            else
+            {
+                i++;
+            }
+            lineNum++;
+        }
+
+        return hunks;
+    }
+
+    private async Task HandleResolve((MergeConflict File, int HunkIndex, ConflictResolution Resolution) args)
+    {
+        var conflict = args.File;
+        var hunkIdx = args.HunkIndex;
+        var resolution = args.Resolution;
+
+        var hunk = conflict.Hunks[hunkIdx];
+        string resolvedContent;
+        switch (resolution)
+        {
+            case ConflictResolution.AcceptCurrent:
+                resolvedContent = hunk.CurrentContent;
+                break;
+            case ConflictResolution.AcceptIncoming:
+                resolvedContent = hunk.IncomingContent;
+                break;
+            case ConflictResolution.AcceptBoth:
+                resolvedContent = hunk.CurrentContent + "\n" + hunk.IncomingContent;
+                await OnToast.InvokeAsync("⚠ 'Accept Both' concatenates both versions — review the result before completing the merge.");
+                break;
+            default:
+                resolvedContent = hunk.CurrentContent;
+                break;
+        }
+
+        // Update local state
+        conflict.Hunks[hunkIdx] = hunk with { Resolution = resolution };
+
+        // If all hunks resolved, send to extension
+        if (conflict.Hunks.All(h => h.Resolution != ConflictResolution.Unresolved))
+        {
+            var result = await Git.ResolveConflict(conflict.FilePath, "resolved", resolvedContent);
+            if (result?.Success == true)
+                await OnToast.InvokeAsync($"Resolved: {conflict.FileName}");
+            else
+                await OnError.InvokeAsync(result?.Error ?? "Failed to resolve");
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task OpenConflictDiff(MergeConflict conflict)
+    {
+        await Git.OpenFile(conflict.FilePath);
+    }
+
+    private async Task AcceptAllCurrent()
+    {
+        foreach (var conflict in _conflicts)
+        {
+            for (int i = 0; i < conflict.Hunks.Count; i++)
+            {
+                await HandleResolve((conflict, i, ConflictResolution.AcceptCurrent));
+            }
+        }
+    }
+
+    private async Task AcceptAllIncoming()
+    {
+        foreach (var conflict in _conflicts)
+        {
+            for (int i = 0; i < conflict.Hunks.Count; i++)
+            {
+                await HandleResolve((conflict, i, ConflictResolution.AcceptIncoming));
+            }
+        }
+    }
+
+    private async Task ContinueMerge()
+    {
+        var result = await Git.ContinueMerge();
+        if (result?.Success == true)
+        {
+            await OnToast.InvokeAsync("Merge completed successfully!");
+            _conflicts.Clear();
+            _isMerging = false;
+            await OnRefresh.InvokeAsync();
+        }
+        else
+        {
+            await OnError.InvokeAsync(result?.Error ?? "Merge continue failed");
+        }
+    }
+
+    private async Task AbortMerge()
+    {
+        await OnConfirmRequest.InvokeAsync((
+            "Abort Merge",
+            "Are you sure you want to abort this merge? All conflict resolutions will be lost.",
+            "This cannot be undone.",
+            true,
+            async () =>
+            {
+                var result = await Git.AbortMerge();
+                if (result?.Success == true)
+                {
+                    await OnToast.InvokeAsync("Merge aborted");
+                    _conflicts.Clear();
+                    _isMerging = false;
+                    await OnRefresh.InvokeAsync();
+                }
+                else
+                {
+                    await OnError.InvokeAsync(result?.Error ?? "Abort failed");
+                }
+            }
+        ));
+    }
+}
