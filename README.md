@@ -1,4 +1,4 @@
-# Git Buddy
+﻿# Git Buddy
 
 > A Visual Studio Team Explorer-style Git panel for VS Code — do everything with natural language or one click, no git commands required.
 
@@ -150,7 +150,7 @@ The output is `git-buddy-1.0.0.vsix` in `src/extension/`.
 
 ```bash
 # .NET / Blazor unit tests (xUnit)
-dotnet test tests/GitSimple.UI.Tests/
+dotnet test tests/GitBuddy.UI.Tests/
 
 # TypeScript unit tests (Jest)
 cd tests/extension.tests
@@ -169,12 +169,12 @@ GitBuddy/
 │   │   ├── nlTranslator.ts      # 3-tier NL → git command translation
 │   │   ├── riskClassifier.ts    # Safe / Moderate / Dangerous classification
 │   │   └── gitPatterns.ts       # Offline pattern library
-│   ├── GitSimple.Core/          # Shared models and parsers (C# / .NET 9)
-│   └── GitSimple.UI/            # Blazor WASM UI (runs inside VS Code webview)
+│   ├── GitBuddy.Core/          # Shared models and parsers (C# / .NET 9)
+│   └── GitBuddy.UI/            # Blazor WASM UI (runs inside VS Code webview)
 │       └── Components/          # Razor components for each panel
 └── tests/
     ├── extension.tests/         # Jest tests for NL translation, patterns, risk
-    └── GitSimple.UI.Tests/      # xUnit tests for parsers and state
+    └── GitBuddy.UI.Tests/      # xUnit tests for parsers and state
 ```
 
 **Key design decisions:**

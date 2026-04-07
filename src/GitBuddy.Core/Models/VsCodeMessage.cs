@@ -1,6 +1,6 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
-namespace GitSimple.Core.Models;
+namespace GitBuddy.Core.Models;
 
 public class VsCodeMessage
 {

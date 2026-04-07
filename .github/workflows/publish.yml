@@ -1,0 +1,63 @@
+name: Publish to VS Code Marketplace
+
+on:
+  push:
+    tags:
+      - 'v*'   # Triggers on v1.0.0, v1.1.0, etc.
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install extension dependencies
+        working-directory: src/extension
+        run: npm ci
+
+      - name: Run .NET tests
+        run: dotnet test tests/GitSimple.UI.Tests/ --configuration Release --logger "console;verbosity=normal"
+
+      - name: Build Blazor UI + copy assets
+        run: powershell -ExecutionPolicy Bypass -File build.ps1
+
+      - name: Compile TypeScript
+        working-directory: src/extension
+        run: npm run compile
+
+      - name: Package VSIX
+        working-directory: src/extension
+        run: npx vsce package --no-git-tag-version
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-simple-vsix
+          path: src/extension/*.vsix
+          retention-days: 90
+
+      - name: Publish to VS Code Marketplace
+        working-directory: src/extension
+        run: npx vsce publish -p ${{ secrets.VSCE_PAT }} --no-git-tag-version
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      # Optional: also publish to Open VSX (for VSCodium / other forks)
+      - name: Publish to Open VSX Registry
+        working-directory: src/extension
+        run: npx ovsx publish --pat ${{ secrets.OVSX_PAT }}
+        continue-on-error: true   # Don't fail the whole job if Open VSX publish fails
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}

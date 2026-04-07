@@ -1,6 +1,6 @@
-using GitSimple.Core.Models;
+﻿using GitBuddy.Core.Models;
 
-namespace GitSimple.Core.Services;
+namespace GitBuddy.Core.Services;
 
 public class CommandHistoryService
 {

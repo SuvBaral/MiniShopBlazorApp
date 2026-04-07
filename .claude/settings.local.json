@@ -3,7 +3,17 @@
     "allow": [
       "Bash(dotnet new:*)",
       "Bash(dotnet sln:*)",
-      "Bash(code --install-extension \"d:/Project/Git Extensions/GitSimple/src/extension/git-simple-1.0.0.vsix\" --force)"
+      "Bash(code --install-extension \"d:/Project/Git Extensions/GitSimple/src/extension/git-simple-1.0.0.vsix\" --force)",
+      "Read(//c/Users/suvba/.gemini/antigravity/brain/1ada783f-6cc4-453e-a2f0-b424caf36ad0/**)",
+      "Bash(npx vsce:*)",
+      "Bash(npm run:*)",
+      "Read(//c/Users/suvba/AppData/Local/Programs/Antigravity/resources/app/**)",
+      "Bash(npm install:*)",
+      "Bash(grep -v \"//\\\\|{ \\\\|{$\")",
+      "Bash(bash /tmp/test_parse.sh)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

@@ -1,3 +1,3 @@
-namespace GitSimple.Core.Models;
+﻿namespace GitBuddy.Core.Models;
 
 public enum RiskLevel { Safe, Moderate, Dangerous }

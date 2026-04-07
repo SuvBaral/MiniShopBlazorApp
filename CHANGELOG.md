@@ -5,27 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-03-29
+## [Unreleased]
+
+## [1.0.0] - 2026-04-07
 
 ### Added
 
-- Initial release of Git Simple extension
-- Natural language git command interface - type plain English instead of memorizing git syntax
-- Team Explorer-style Git panel integrated into VS Code activity bar
-- Risk classification system for git operations with automatic detection of dangerous commands
-- GitHub Copilot integration for AI-powered command suggestions and auto-completion
-- Blazor WASM-powered UI for fast, responsive interactions
-- Offline mode with built-in command pattern recognition
-- Configurable safety features including operation confirmations
-- Automatic backup/stash before dangerous operations
-- Support for common git workflows (branch switching, merging, rebasing, committing, pushing, pulling)
-- Keyboard shortcut (Ctrl+Shift+G Ctrl+Shift+N) for quick access to natural language input
-- Multi-provider AI support (Copilot, Anthropic, Offline)
-- Comprehensive configuration panel for customizing behavior
+- **Natural language command bar** — type plain English git instructions; translated via a 3-tier pipeline (regex patterns → fuzzy matching → GitHub Copilot LLM)
+- **Risk classification** — every command is classified as safe / moderate / dangerous; moderate ops confirm, dangerous ops auto-stash and warn before running
+- **Interactive staging** — stage / unstage individual files with a single click; open VS Code diff editor per file
+- **Commit composer** — commit message textarea with built-in templates, AI message generation from staged diff, `Ctrl+Enter` shortcut, amend support
+- **Branch management** — view local and remote branches, checkout, create, rename, delete via right-click context menu; ahead/behind sync badge on current branch
+- **Commit history** — recent commit log with cherry-pick, copy hash, and copy message actions
+- **Tag management** — create lightweight and annotated tags, delete, push to remote
+- **Merge conflict resolution** — automatic panel when conflicts exist; accept ours/theirs per file, abort or continue merge
+- **Quick actions bar** — Fetch, Pull, Push, Sync, Stash buttons always visible at the top
+- **Stash management** — list, apply, pop, and drop stashes; create named stashes
+- **Security** — all git calls use `child_process.execFile` (no shell injection); NL execution validates and sanitizes command strings before running
+- **Blazor WASM UI** — full Razor component tree runs inside a VS Code webview via a postMessage bridge
+- **Keyboard shortcut** — `Ctrl+Shift+G Ctrl+Shift+N` focuses the NL command bar from anywhere
 
 ### Requirements
 
-- VS Code 1.90.0 or later
-- Git installed and configured on the system
+- VS Code 1.107.0 or later (or a compatible fork)
+- Git installed and available on `PATH`
+- GitHub Copilot (optional — for AI commit messages and NL fallback)
 
-[1.0.0]: https://github.com/YourUsername/GitSimple/releases/tag/v1.0.0
+[Unreleased]: https://github.com/YOUR-USERNAME/GitBuddy/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/YOUR-USERNAME/GitBuddy/releases/tag/v1.0.0

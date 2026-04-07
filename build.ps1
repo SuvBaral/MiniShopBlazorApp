@@ -1,8 +1,8 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $currentDir = $PSScriptRoot
-$uiProject = Join-Path $currentDir "src\GitSimple.UI\GitSimple.UI.csproj"
-$uiPublishDir = Join-Path $currentDir "src\GitSimple.UI\bin\Release\net9.0\publish\wwwroot"
+$uiProject = Join-Path $currentDir "src\GitBuddy.UI\GitBuddy.UI.csproj"
+$uiPublishDir = Join-Path $currentDir "src\GitBuddy.UI\bin\Release\net9.0\publish\wwwroot"
 $extensionBlazorDir = Join-Path $currentDir "src\extension\blazor-app"
 
 Write-Host "Building Blazor WebAssembly Project..." -ForegroundColor Cyan

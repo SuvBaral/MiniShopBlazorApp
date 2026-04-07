@@ -1,6 +1,6 @@
-using GitSimple.Core.Models;
+﻿using GitBuddy.Core.Models;
 
-namespace GitSimple.Core.Services;
+namespace GitBuddy.Core.Services;
 
 // Delimiter: ASCII Unit Separator (\x1F, char 31) — coordinated with extension.ts --format strings.
 // This character cannot appear in git refs or branch names.
